@@ -1,0 +1,22 @@
+## Interface: 120000
+## Title: Baggy
+## Notes: Modern categorized bag replacement
+## Author: Shonkxs
+## Version: 1.0.0
+## SavedVariables: BaggyDB
+
+embeds.xml
+
+Constants.lua
+Config.lua
+Data\ContainerIndex.lua
+Data\Overrides.lua
+Data\Categorizer.lua
+Data\Scanner.lua
+UI\Theme.lua
+UI\ItemButton.lua
+UI\ItemGrid.lua
+UI\Tabs.lua
+UI\BankToggle.lua
+UI\MainFrame.lua
+Core.lua
