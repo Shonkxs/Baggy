@@ -6,6 +6,34 @@ local Theme = ns.Theme
 local ItemButton = {}
 ns.ItemButton = ItemButton
 
+local function setReagentQualityBadge(texture, reagentQuality)
+    if not texture or type(reagentQuality) ~= "number" then
+        return false
+    end
+
+    local tier = math.floor(reagentQuality)
+    if tier <= 0 then
+        return false
+    end
+
+    if not texture.SetAtlas then
+        return false
+    end
+
+    local atlasName = string.format("Professions-Icon-Quality-Tier%d-Inv", tier)
+    if _G.C_Texture and _G.C_Texture.GetAtlasInfo and not _G.C_Texture.GetAtlasInfo(atlasName) then
+        return false
+    end
+
+    local useAtlasSize = true
+    if _G.TextureKitConstants and _G.TextureKitConstants.UseAtlasSize ~= nil then
+        useAtlasSize = _G.TextureKitConstants.UseAtlasSize
+    end
+
+    texture:SetAtlas(atlasName, useAtlasSize)
+    return true
+end
+
 local function getRecordLink(record)
     if record.link then
         return record.link
@@ -131,6 +159,10 @@ function ItemButton.Create(parent)
     button.lockOverlay:SetColorTexture(0.1, 0.1, 0.1, 0.5)
     button.lockOverlay:Hide()
 
+    button.reagentQualityBadge = button:CreateTexture(nil, "OVERLAY", nil, 7)
+    button.reagentQualityBadge:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -1)
+    button.reagentQualityBadge:Hide()
+
     function button:SplitStack(splitAmount)
         local record = self.record
         if not record then
@@ -162,6 +194,7 @@ function ItemButton.Create(parent)
             self.icon:SetTexture(nil)
             self.countText:SetText("")
             self.lockOverlay:Hide()
+            self.reagentQualityBadge:Hide()
             self:Hide()
             return
         end
@@ -178,6 +211,12 @@ function ItemButton.Create(parent)
             self.lockOverlay:Show()
         else
             self.lockOverlay:Hide()
+        end
+
+        if setReagentQualityBadge(self.reagentQualityBadge, record.reagentQuality) then
+            self.reagentQualityBadge:Show()
+        else
+            self.reagentQualityBadge:Hide()
         end
 
         local quality = record.quality or 0

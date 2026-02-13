@@ -33,6 +33,7 @@ Modern category-based bag replacement for World of Warcraft Retail.
 - Persistent frame position, size, scale, active tab/subtab, and lock state
 - UI labels are intentionally English and work across all game locales
 - Header shows current character gold (gold/silver/copper)
+- Crafting reagent quality badges are shown on item icons (when available via API)
 
 ## Commands
 
@@ -62,6 +63,12 @@ Modern category-based bag replacement for World of Warcraft Retail.
 
 - Gold uses the character money API (`GetMoney()`), not warband/account aggregated totals.
 - The header display is formatted as gold/silver/copper with WoW coin icons.
+
+## Crafting Quality Badges
+
+- Badge source: `C_TradeSkillUI.GetItemReagentQualityByItemInfo`.
+- Reagent quality badges are shown at the top-left of item icons.
+- Stack counts are shown at the bottom-right to avoid overlap with quality badges.
 
 ## Scope
 

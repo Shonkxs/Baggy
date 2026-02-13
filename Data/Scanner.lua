@@ -90,6 +90,28 @@ local function resolveItemLevel(itemLink)
     return 0
 end
 
+local function resolveReagentQuality(itemID, itemLink)
+    if not (_G.C_TradeSkillUI and _G.C_TradeSkillUI.GetItemReagentQualityByItemInfo) then
+        return nil
+    end
+
+    local quality
+    if itemLink then
+        quality = _G.C_TradeSkillUI.GetItemReagentQualityByItemInfo(itemLink)
+    end
+
+    if quality == nil and itemID then
+        quality = _G.C_TradeSkillUI.GetItemReagentQualityByItemInfo(itemID)
+    end
+
+    quality = toNumberOrNil(quality)
+    if not quality or quality <= 0 then
+        return nil
+    end
+
+    return math.floor(quality)
+end
+
 local function resolveItemInfo(itemID, itemLink, slotInfo)
     local name, linkFromInfo, quality, _, _, _, _, _, equipLoc, icon, _, classID, subClassID = _G.GetItemInfo(itemID)
     local instantInfo = getInstantItemFields(itemLink or itemID)
@@ -157,6 +179,7 @@ function Scanner.ScanContainers(containerIDs)
                     classID = itemInfo.classID,
                     subClassID = itemInfo.subClassID,
                     equipLoc = itemInfo.equipLoc or "",
+                    reagentQuality = resolveReagentQuality(slotInfo.itemID, itemLink),
                     isMountItem = isMountItem(slotInfo.itemID),
                     isLocked = slotInfo.isLocked or false,
                 }
