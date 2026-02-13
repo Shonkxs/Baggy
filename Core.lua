@@ -92,6 +92,10 @@ function Baggy:OnInitialize()
     self.armorCounts = Constants.NewArmorCountMap()
     self.debugClassificationEnabled = false
     self.playerMoney = 0
+    self.toggleIntentQueued = false
+    self.justOpenedByHook = false
+    self.justOpenedNonce = 0
+    self.internalHideGuard = false
 
     self:RegisterChatCommand("baggy", "HandleSlashCommand")
 end
@@ -163,6 +167,59 @@ function Baggy:AddToSpecialFrames()
     _G.UISpecialFrames[#_G.UISpecialFrames + 1] = "BaggyMainFrame"
 end
 
+function Baggy:MarkJustOpenedByHook()
+    self.justOpenedByHook = true
+    self.justOpenedNonce = (self.justOpenedNonce or 0) + 1
+
+    local nonce = self.justOpenedNonce
+    _G.C_Timer.After(0.05, function()
+        if self.justOpenedNonce ~= nonce then
+            return
+        end
+
+        self.justOpenedByHook = false
+    end)
+end
+
+function Baggy:ResolveToggleIntent()
+    if not self.mainFrame then
+        return
+    end
+
+    local effectiveMode = self:GetEffectiveMode()
+    if self.mainFrame:IsShown() then
+        if effectiveMode == Constants.MODES.INVENTORY then
+            if self.justOpenedByHook then
+                self.justOpenedByHook = false
+                return
+            end
+
+            self:HandleBagCloseRequest(true)
+            if not self.mainFrame:IsShown() then
+                self:HideBlizzardBagFrames(false)
+            end
+            return
+        end
+
+        self:HideBlizzardBagFrames(false)
+        return
+    end
+
+    self:HandleBagOpenRequest()
+end
+
+function Baggy:QueueToggleIntent()
+    if self.toggleIntentQueued then
+        return
+    end
+
+    self.toggleIntentQueued = true
+    _G.C_Timer.After(0, function()
+        self.toggleIntentQueued = false
+        self:ResolveToggleIntent()
+    end)
+end
+
 function Baggy:InstallBagHooks()
     if self.hooksInstalled then
         return
@@ -192,23 +249,11 @@ function Baggy:InstallBagHooks()
     end)
 
     hookIfExists("ToggleAllBags", function()
-        local token = self.bagActionToken or 0
-        _G.C_Timer.After(0, function()
-            if (self.bagActionToken or 0) ~= token then
-                return
-            end
-            self:HandleBagToggleFallback()
-        end)
+        self:QueueToggleIntent()
     end)
 
     hookIfExists("ToggleBackpack", function()
-        local token = self.bagActionToken or 0
-        _G.C_Timer.After(0, function()
-            if (self.bagActionToken or 0) ~= token then
-                return
-            end
-            self:HandleBagToggleFallback()
-        end)
+        self:QueueToggleIntent()
     end)
 
     hookIfExists("OpenBag", function()
@@ -220,13 +265,7 @@ function Baggy:InstallBagHooks()
     end)
 
     hookIfExists("ToggleBag", function()
-        local token = self.bagActionToken or 0
-        _G.C_Timer.After(0, function()
-            if (self.bagActionToken or 0) ~= token then
-                return
-            end
-            self:HandleBagToggleFallback()
-        end)
+        self:QueueToggleIntent()
     end)
 end
 
@@ -261,25 +300,6 @@ function Baggy:InstallContainerFrameVisibilityHooks()
     end
 end
 
-function Baggy:MarkBagAction()
-    self.bagActionToken = (self.bagActionToken or 0) + 1
-end
-
-function Baggy:SuppressBagCloseFor(seconds)
-    local now = (_G.GetTime and _G.GetTime()) or 0
-    local duration = tonumber(seconds) or 0.35
-    local untilTime = now + duration
-
-    if (self.suppressBagCloseUntil or 0) < untilTime then
-        self.suppressBagCloseUntil = untilTime
-    end
-end
-
-function Baggy:IsBagCloseSuppressed()
-    local now = (_G.GetTime and _G.GetTime()) or 0
-    return (self.suppressBagCloseUntil or 0) > now
-end
-
 function Baggy:RefreshMoney()
     local money = 0
     if _G.GetMoney then
@@ -302,21 +322,26 @@ function Baggy:HandleBagOpenRequest()
         return
     end
 
-    self:MarkBagAction()
-    self:SuppressBagCloseFor(0.40)
+    if self.mainFrame:IsShown() then
+        self:RefreshMoney()
+        self:HideBlizzardBagFrames(false)
+        return
+    end
+
     self:RefreshMoney()
+    self:MarkJustOpenedByHook()
 
     self.mainFrame:Show()
     self:RequestRescan()
-    self:HideBlizzardBagFrames()
+    self:HideBlizzardBagFrames(true)
 end
 
-function Baggy:HandleBagCloseRequest()
+function Baggy:HandleBagCloseRequest(ignoreInternalGuard)
     if not self.mainFrame then
         return
     end
 
-    if self:IsBagCloseSuppressed() then
+    if not ignoreInternalGuard and self.internalHideGuard then
         return
     end
 
@@ -324,26 +349,18 @@ function Baggy:HandleBagCloseRequest()
         return
     end
 
-    self:MarkBagAction()
     self.mainFrame:Hide()
 end
 
-function Baggy:HandleBagToggleFallback()
-    if not self.mainFrame then
-        return
+function Baggy:HideBlizzardBagFrames(applyGuard)
+    if applyGuard == nil then
+        applyGuard = true
     end
 
-    if self.mainFrame:IsShown() and self:GetEffectiveMode() == Constants.MODES.INVENTORY then
-        self:HandleBagCloseRequest()
-        return
-    end
-
-    self:HandleBagOpenRequest()
-end
-
-function Baggy:HideBlizzardBagFrames()
-    self:SuppressBagCloseFor(0.40)
     self:InstallContainerFrameVisibilityHooks()
+    if applyGuard then
+        self.internalHideGuard = true
+    end
 
     if _G.ContainerFrameCombinedBags and _G.ContainerFrameCombinedBags:IsShown() then
         _G.ContainerFrameCombinedBags:Hide()
@@ -366,7 +383,6 @@ function Baggy:HideBlizzardBagFrames()
 
     _G.C_Timer.After(0, function()
         if self.mainFrame and self.mainFrame:IsShown() then
-            self:SuppressBagCloseFor(0.40)
             if _G.ContainerFrameCombinedBags and _G.ContainerFrameCombinedBags:IsShown() then
                 _G.ContainerFrameCombinedBags:Hide()
             end
@@ -378,6 +394,10 @@ function Baggy:HideBlizzardBagFrames()
                     end
                 end
             end
+        end
+
+        if applyGuard then
+            self.internalHideGuard = false
         end
     end)
 end
@@ -538,7 +558,7 @@ function Baggy:ApplyView()
     self.mainFrame:SetItems(visibleItems)
 
     if self.mainFrame:IsShown() then
-        self:HideBlizzardBagFrames()
+        self:HideBlizzardBagFrames(false)
     end
 end
 
@@ -628,7 +648,7 @@ function Baggy:ToggleMainFrame()
     else
         self.mainFrame:Show()
         self:RequestRescan()
-        self:HideBlizzardBagFrames()
+        self:HideBlizzardBagFrames(true)
     end
 end
 
