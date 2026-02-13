@@ -8,6 +8,8 @@ local overrideByItemID = {
     -- Example:
     -- [12345] = { mainTab = "MATERIALS" },
     -- [67890] = { mainTab = "MATERIALS" },
+    -- [24680] = { mainTab = "GEMS" },
+    -- [13579] = { mainTab = "ENCHANTMENTS" },
     -- [11111] = { mainTab = "ARMOR", armorSubTab = "WEAPONS" },
 }
 

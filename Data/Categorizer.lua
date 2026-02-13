@@ -64,8 +64,15 @@ function Categorizer.Categorize(itemRecord)
 
     local enumTable = _G.Enum
     if enumTable and enumTable.ItemClass then
-        if itemRecord.classID == enumTable.ItemClass.Consumable
-            or itemRecord.classID == enumTable.ItemClass.ItemEnhancement then
+        if itemRecord.classID == enumTable.ItemClass.Gem then
+            return Constants.TAB_IDS.GEMS, nil
+        end
+
+        if itemRecord.classID == enumTable.ItemClass.ItemEnhancement then
+            return Constants.TAB_IDS.ENCHANTMENTS, nil
+        end
+
+        if itemRecord.classID == enumTable.ItemClass.Consumable then
             return Constants.TAB_IDS.CONSUMABLES, nil
         end
 

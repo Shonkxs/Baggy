@@ -9,6 +9,8 @@ Modern category-based bag replacement for World of Warcraft Retail.
   - Consumables
   - Armor
   - Materials
+  - Gems
+  - Enchantments
   - Mounts
   - Misc
 - Armor subtabs:
@@ -47,6 +49,13 @@ Modern category-based bag replacement for World of Warcraft Retail.
 - Classification logic is locale-independent and does not use tooltip/name text parsing.
 - `Data/Overrides.lua` can pin specific itemIDs to explicit tabs for API edge cases.
 - Legacy saved tabs (`CLOTH/LEATHER/HERBS/ORES`) are auto-migrated to `MATERIALS`.
+
+## Gems and Enchantments
+
+- `Enum.ItemClass.Gem` items are routed to `Gems`.
+- `Enum.ItemClass.ItemEnhancement` items are routed to `Enchantments`.
+- This is a strict split: Gems/ItemEnhancement are not duplicated into `Materials`.
+- Enchanting reagents (for example dust/shards/essences) usually remain in `Materials` because they are typically `Tradegoods`/`Reagent`.
 
 ## Scope
 

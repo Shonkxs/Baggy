@@ -12,6 +12,8 @@ Constants.TAB_IDS = {
     CONSUMABLES = "CONSUMABLES",
     ARMOR = "ARMOR",
     MATERIALS = "MATERIALS",
+    GEMS = "GEMS",
+    ENCHANTMENTS = "ENCHANTMENTS",
     MOUNTS = "MOUNTS",
     MISC = "MISC",
 }
@@ -20,6 +22,8 @@ Constants.MAIN_TABS = {
     { id = Constants.TAB_IDS.CONSUMABLES, label = "Consumables" },
     { id = Constants.TAB_IDS.ARMOR, label = "Armor" },
     { id = Constants.TAB_IDS.MATERIALS, label = "Materials" },
+    { id = Constants.TAB_IDS.GEMS, label = "Gems" },
+    { id = Constants.TAB_IDS.ENCHANTMENTS, label = "Enchantments" },
     { id = Constants.TAB_IDS.MOUNTS, label = "Mounts" },
     { id = Constants.TAB_IDS.MISC, label = "Misc" },
 }
