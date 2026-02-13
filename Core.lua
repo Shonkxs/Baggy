@@ -11,6 +11,7 @@ local Config = ns.Config
 local ContainerIndex = ns.ContainerIndex
 local Categorizer = ns.Categorizer
 local Scanner = ns.Scanner
+local Currencies = ns.Currencies
 local MainFrame = ns.MainFrame
 
 local function normalizeMainTab(tabID)
@@ -60,6 +61,7 @@ local function cloneDefaults()
         activeTab = defaults.activeTab,
         activeArmorSubTab = defaults.activeArmorSubTab,
         activeMode = defaults.activeMode,
+        trackedCurrencyIDs = Config.CopyNumberList(defaults.trackedCurrencyIDs),
     }
 end
 
@@ -80,6 +82,12 @@ function Baggy:OnInitialize()
         self.profile.activeMode = Constants.MODES.INVENTORY
     end
 
+    local trackedCurrencyIDs = Config.CopyNumberList(self.profile.trackedCurrencyIDs)
+    if Currencies and Currencies.NormalizeTrackedCurrencyIDs then
+        trackedCurrencyIDs = Currencies.NormalizeTrackedCurrencyIDs(trackedCurrencyIDs)
+    end
+    self.profile.trackedCurrencyIDs = trackedCurrencyIDs
+
     self.activeTab = self.profile.activeTab
     self.activeArmorSubTab = self.profile.activeArmorSubTab
     self.activeMode = self.profile.activeMode
@@ -96,6 +104,8 @@ function Baggy:OnInitialize()
     self.justOpenedByHook = false
     self.justOpenedNonce = 0
     self.internalHideGuard = false
+    self.trackedCurrencyIDs = Config.CopyNumberList(self.profile.trackedCurrencyIDs)
+    self.trackedCurrencies = {}
 
     self:RegisterChatCommand("baggy", "HandleSlashCommand")
 end
@@ -120,6 +130,14 @@ function Baggy:PLAYER_LOGIN()
         onSearchChanged = function(text) self:HandleSearchChanged(text) end,
         onModeChanged = function(mode) self:SetMode(mode) end,
         onGeometryChanged = function() self:SaveGeometry() end,
+        onCurrencyAdd = function(currencyID) return self:AddTrackedCurrency(currencyID) end,
+        onCurrencyRemove = function(currencyID) self:RemoveTrackedCurrency(currencyID) end,
+        getCurrencyPickerOptions = function(searchText) return self:GetCurrencyPickerOptions(searchText) end,
+        onCurrencyPickerOpened = function()
+            if self.mainFrame and self.mainFrame.RefreshCurrencyPicker then
+                self.mainFrame:RefreshCurrencyPicker()
+            end
+        end,
     })
 
     self.mainFrame:ApplyProfile(self.profile)
@@ -135,6 +153,7 @@ function Baggy:PLAYER_LOGIN()
     self:RegisterEvent("PLAYER_INTERACTION_MANAGER_FRAME_HIDE")
     self:RegisterEvent("ITEM_DATA_LOAD_RESULT")
     self:RegisterEvent("PLAYER_MONEY")
+    self:RegisterEvent("CURRENCY_DISPLAY_UPDATE")
 
     if _G.C_EventUtils and _G.C_EventUtils.IsEventValid and _G.C_EventUtils.IsEventValid("PLAYERREAGENTBANKSLOTS_CHANGED") then
         self:RegisterEvent("PLAYERREAGENTBANKSLOTS_CHANGED", "RequestRescan")
@@ -144,6 +163,7 @@ function Baggy:PLAYER_LOGIN()
     self:InstallContainerFrameVisibilityHooks()
     self:AddToSpecialFrames()
     self:RefreshMoney()
+    self:RefreshTrackedCurrencies()
     Categorizer.RebuildTradeSubclassSets()
     self:RebuildData()
     self:ApplyView()
@@ -315,6 +335,171 @@ function Baggy:RefreshMoney()
     if self.mainFrame and self.mainFrame.SetMoney then
         self.mainFrame:SetMoney(self.playerMoney)
     end
+end
+
+function Baggy:PersistTrackedCurrencyIDs()
+    local ids = Config.CopyNumberList(self.trackedCurrencyIDs)
+    if Currencies and Currencies.NormalizeTrackedCurrencyIDs then
+        ids = Currencies.NormalizeTrackedCurrencyIDs(ids)
+    end
+
+    self.trackedCurrencyIDs = ids
+    self.profile.trackedCurrencyIDs = Config.CopyNumberList(ids)
+end
+
+function Baggy:RefreshTrackedCurrencies()
+    local entries = {}
+    local trackedIDs = self.trackedCurrencyIDs or {}
+
+    for _, currencyID in ipairs(trackedIDs) do
+        local entry
+        if Currencies and Currencies.GetCurrencyEntry then
+            entry = Currencies.GetCurrencyEntry(currencyID)
+        end
+
+        if not entry then
+            local numericID = tonumber(currencyID)
+            if numericID then
+                numericID = math.floor(numericID)
+                entry = {
+                    currencyID = numericID,
+                    name = string.format("Currency %d", numericID),
+                    iconFileID = nil,
+                    quantity = 0,
+                }
+            end
+        end
+
+        if entry then
+            entries[#entries + 1] = entry
+        end
+    end
+
+    self.trackedCurrencies = entries
+
+    if self.mainFrame and self.mainFrame.SetTrackedCurrencies then
+        self.mainFrame:SetTrackedCurrencies(entries)
+    end
+end
+
+function Baggy:GetCurrencyPickerOptions(searchText)
+    local options = {}
+    if not (Currencies and Currencies.GetSelectableCurrencies) then
+        return options
+    end
+
+    local maxTracked = (Currencies and Currencies.MAX_TRACKED) or 8
+    local trackedCount = #(self.trackedCurrencyIDs or {})
+    local atCapacity = trackedCount >= maxTracked
+
+    local selected = {}
+    for _, currencyID in ipairs(self.trackedCurrencyIDs or {}) do
+        local numericID = tonumber(currencyID)
+        if numericID then
+            selected[math.floor(numericID)] = true
+        end
+    end
+
+    local query = lowerOrEmpty(searchText or "")
+    query = query:gsub("^%s+", ""):gsub("%s+$", "")
+
+    local entries = Currencies.GetSelectableCurrencies()
+    for _, entry in ipairs(entries) do
+        local entryName = entry.name or ""
+        if query == "" or string.find(lowerOrEmpty(entryName), query, 1, true) then
+            local isSelected = selected[entry.currencyID] == true
+            local isDisabled = isSelected or (atCapacity and not isSelected)
+            local disabledReason = nil
+            if isSelected then
+                disabledReason = "ADDED"
+            elseif isDisabled then
+                disabledReason = "MAX_TRACKED"
+            end
+
+            options[#options + 1] = {
+                currencyID = entry.currencyID,
+                name = entryName,
+                iconFileID = entry.iconFileID,
+                quantity = entry.quantity or 0,
+                isSelected = isSelected,
+                isDisabled = isDisabled,
+                disabledReason = disabledReason,
+            }
+        end
+    end
+
+    return options
+end
+
+function Baggy:AddTrackedCurrency(currencyID)
+    local numericID = tonumber(currencyID)
+    if not numericID then
+        return false
+    end
+
+    numericID = math.floor(numericID)
+    if numericID <= 0 then
+        return false
+    end
+
+    self.trackedCurrencyIDs = self.trackedCurrencyIDs or {}
+
+    for _, existingID in ipairs(self.trackedCurrencyIDs) do
+        if existingID == numericID then
+            return false
+        end
+    end
+
+    local maxTracked = (Currencies and Currencies.MAX_TRACKED) or 8
+    if #self.trackedCurrencyIDs >= maxTracked then
+        return false
+    end
+
+    self.trackedCurrencyIDs[#self.trackedCurrencyIDs + 1] = numericID
+    self:PersistTrackedCurrencyIDs()
+    self:RefreshTrackedCurrencies()
+
+    if self.mainFrame and self.mainFrame.RefreshCurrencyPicker then
+        self.mainFrame:RefreshCurrencyPicker()
+    end
+
+    return true
+end
+
+function Baggy:RemoveTrackedCurrency(currencyID)
+    local numericID = tonumber(currencyID)
+    if not numericID then
+        return false
+    end
+
+    numericID = math.floor(numericID)
+    if numericID <= 0 then
+        return false
+    end
+
+    local nextIDs = {}
+    local removed = false
+    for _, existingID in ipairs(self.trackedCurrencyIDs or {}) do
+        if existingID == numericID then
+            removed = true
+        else
+            nextIDs[#nextIDs + 1] = existingID
+        end
+    end
+
+    if not removed then
+        return false
+    end
+
+    self.trackedCurrencyIDs = nextIDs
+    self:PersistTrackedCurrencyIDs()
+    self:RefreshTrackedCurrencies()
+
+    if self.mainFrame and self.mainFrame.RefreshCurrencyPicker then
+        self.mainFrame:RefreshCurrencyPicker()
+    end
+
+    return true
 end
 
 function Baggy:HandleBagOpenRequest()
@@ -623,18 +808,25 @@ function Baggy:ResetProfileLayout()
     self.profile.activeTab = defaults.activeTab
     self.profile.activeArmorSubTab = defaults.activeArmorSubTab
     self.profile.activeMode = defaults.activeMode
+    self.profile.trackedCurrencyIDs = Config.CopyNumberList(defaults.trackedCurrencyIDs)
 
     self.activeTab = self.profile.activeTab
     self.activeArmorSubTab = self.profile.activeArmorSubTab
     self.activeMode = self.profile.activeMode
     self.searchText = ""
+    self.trackedCurrencyIDs = Config.CopyNumberList(self.profile.trackedCurrencyIDs)
+    self.trackedCurrencies = {}
 
     if self.mainFrame then
         self.mainFrame:ApplyProfile(self.profile)
         self.mainFrame:SetLocked(self.profile.locked)
         self.mainFrame:SetSearchText("")
+        if self.mainFrame.SetCurrencyPickerVisible then
+            self.mainFrame:SetCurrencyPickerVisible(false)
+        end
     end
 
+    self:RefreshTrackedCurrencies()
     self:RequestRescan()
 end
 
@@ -781,4 +973,8 @@ end
 
 function Baggy:PLAYER_MONEY()
     self:RefreshMoney()
+end
+
+function Baggy:CURRENCY_DISPLAY_UPDATE()
+    self:RefreshTrackedCurrencies()
 end

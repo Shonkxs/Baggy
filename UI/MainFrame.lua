@@ -50,7 +50,7 @@ end
 local function createDragHandle(frame, callbacks)
     local dragHandle = CreateFrame("Frame", nil, frame)
     dragHandle:SetPoint("TOPLEFT", frame, "TOPLEFT", 8, -8)
-    dragHandle:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -320, -8)
+    dragHandle:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -520, -8)
     dragHandle:SetHeight(26)
     dragHandle:EnableMouse(true)
     dragHandle:RegisterForDrag("LeftButton")
@@ -101,6 +101,25 @@ local function formatFallbackCoins(copperAmount)
     return string.format("%dg %ds %dc", gold, silver, copperRemainder)
 end
 
+local function formatCompactCount(value)
+    local numeric = tonumber(value) or 0
+    if numeric < 0 then
+        numeric = 0
+    end
+
+    numeric = math.floor(numeric)
+
+    if _G.AbbreviateLargeNumbers then
+        return _G.AbbreviateLargeNumbers(numeric)
+    end
+
+    if _G.BreakUpLargeNumbers then
+        return _G.BreakUpLargeNumbers(numeric)
+    end
+
+    return tostring(numeric)
+end
+
 function MainFrame.Create(callbacks)
     callbacks = callbacks or {}
 
@@ -125,6 +144,10 @@ function MainFrame.Create(callbacks)
             selfFrame:StopMovingOrSizing()
             selfFrame.isMoving = false
             selfFrame.isSizing = false
+        end
+
+        if selfFrame.currencyPicker then
+            selfFrame.currencyPicker:Hide()
         end
     end)
 
@@ -153,6 +176,224 @@ function MainFrame.Create(callbacks)
         frame.moneyLabel:SetTextColor(unpack(Theme.palette.textMuted))
     end
 
+    frame.currencyStrip = CreateFrame("Frame", nil, frame)
+    frame.currencyStrip:SetSize(470, 22)
+    frame.currencyStrip:SetClipsChildren(true)
+    frame.currencyBadgeButtons = {}
+    frame.trackedCurrencyEntries = {}
+
+    frame.currencyAddButton = CreateFrame("Button", nil, frame, "BackdropTemplate")
+    frame.currencyAddButton:SetSize(22, 22)
+    frame.currencyAddButton:SetBackdrop(Theme.insetBackdrop)
+    frame.currencyAddButton.text = frame.currencyAddButton:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    frame.currencyAddButton.text:SetPoint("CENTER", 0, -1)
+    frame.currencyAddButton.text:SetText("+")
+    Theme.StyleUtilityButton(frame.currencyAddButton, true)
+    frame.currencyAddButton:SetPoint("RIGHT", frame.moneyLabel, "LEFT", -8, 0)
+    frame.currencyStrip:SetPoint("RIGHT", frame.currencyAddButton, "LEFT", -6, 0)
+
+    frame.currencyPicker = CreateFrame("Frame", nil, frame, "BackdropTemplate")
+    frame.currencyPicker:SetSize(360, 320)
+    frame.currencyPicker:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -16, -34)
+    Theme.ApplyInset(frame.currencyPicker)
+    frame.currencyPicker:SetFrameStrata("DIALOG")
+    frame.currencyPicker:SetFrameLevel(frame:GetFrameLevel() + 40)
+    if frame.currencyPicker.SetToplevel then
+        frame.currencyPicker:SetToplevel(true)
+    end
+    frame.currencyPicker:Hide()
+    frame.currencyPicker.rows = {}
+    frame.currencyPicker.entries = {}
+    frame.currencyPicker.rowHeight = 24
+    frame.currencyPicker.rowSpacing = 2
+
+    frame.currencyPicker.title = frame.currencyPicker:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    frame.currencyPicker.title:SetPoint("TOPLEFT", frame.currencyPicker, "TOPLEFT", 12, -10)
+    frame.currencyPicker.title:SetText("Add Currency")
+
+    frame.currencyPicker.closeButton = CreateFrame("Button", nil, frame.currencyPicker, "UIPanelCloseButton")
+    frame.currencyPicker.closeButton:SetPoint("TOPRIGHT", frame.currencyPicker, "TOPRIGHT", 2, 2)
+
+    frame.currencyPicker.searchLabel = frame.currencyPicker:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    frame.currencyPicker.searchLabel:SetPoint("TOPLEFT", frame.currencyPicker, "TOPLEFT", 12, -34)
+    frame.currencyPicker.searchLabel:SetText("Search")
+
+    frame.currencyPicker.searchBox = CreateFrame("EditBox", nil, frame.currencyPicker, "InputBoxTemplate,BackdropTemplate")
+    frame.currencyPicker.searchBox:SetAutoFocus(false)
+    frame.currencyPicker.searchBox:SetSize(220, 22)
+    frame.currencyPicker.searchBox:SetPoint("LEFT", frame.currencyPicker.searchLabel, "RIGHT", 8, 0)
+    Theme.StyleSearchBox(frame.currencyPicker.searchBox)
+
+    frame.currencyPicker.scrollFrame = CreateFrame("ScrollFrame", nil, frame.currencyPicker, "UIPanelScrollFrameTemplate")
+    frame.currencyPicker.scrollFrame:SetPoint("TOPLEFT", frame.currencyPicker, "TOPLEFT", 12, -56)
+    frame.currencyPicker.scrollFrame:SetPoint("BOTTOMRIGHT", frame.currencyPicker, "BOTTOMRIGHT", -28, 12)
+
+    frame.currencyPicker.content = CreateFrame("Frame", nil, frame.currencyPicker.scrollFrame)
+    frame.currencyPicker.content:SetPoint("TOPLEFT")
+    frame.currencyPicker.content:SetSize(1, 1)
+    frame.currencyPicker.scrollFrame:SetScrollChild(frame.currencyPicker.content)
+
+    frame.currencyPicker.emptyText = frame.currencyPicker.content:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+    frame.currencyPicker.emptyText:SetPoint("TOP", frame.currencyPicker.content, "TOP", 0, -8)
+    frame.currencyPicker.emptyText:SetText("No currencies found.")
+    frame.currencyPicker.emptyText:Hide()
+
+    local function syncCurrencyPickerContentWidth()
+        local picker = frame.currencyPicker
+        if not (picker and picker.scrollFrame and picker.content) then
+            return
+        end
+
+        local width = math.floor((picker.scrollFrame:GetWidth() or 0) - 4)
+        if width < 1 then
+            width = 1
+        end
+
+        local height = math.floor(picker.content:GetHeight() or 1)
+        if height < 1 then
+            height = 1
+        end
+
+        picker.content:SetSize(width, height)
+    end
+
+    frame.currencyPicker.scrollFrame:SetScript("OnSizeChanged", function()
+        syncCurrencyPickerContentWidth()
+    end)
+    syncCurrencyPickerContentWidth()
+
+    local function acquireCurrencyBadgeButton(index)
+        local button = frame.currencyBadgeButtons[index]
+        if button then
+            return button
+        end
+
+        button = CreateFrame("Button", nil, frame.currencyStrip, "BackdropTemplate")
+        button:SetBackdrop(Theme.insetBackdrop)
+        button:SetBackdropColor(unpack(Theme.palette.insetBg))
+        button:SetBackdropBorderColor(unpack(Theme.palette.insetBorder))
+        button:SetHeight(20)
+        button:RegisterForClicks("RightButtonUp")
+
+        button.icon = button:CreateTexture(nil, "ARTWORK")
+        button.icon:SetSize(14, 14)
+        button.icon:SetPoint("LEFT", button, "LEFT", 3, 0)
+
+        button.countText = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        button.countText:SetPoint("LEFT", button.icon, "RIGHT", 3, 0)
+        button.countText:SetJustifyH("LEFT")
+
+        button:SetScript("OnClick", function(selfButton, mouseButton)
+            if mouseButton ~= "RightButton" then
+                return
+            end
+
+            if callbacks.onCurrencyRemove and selfButton.currencyID then
+                callbacks.onCurrencyRemove(selfButton.currencyID)
+            end
+        end)
+
+        button:SetScript("OnEnter", function(selfButton)
+            if not _G.GameTooltip then
+                return
+            end
+
+            _G.GameTooltip:SetOwner(selfButton, "ANCHOR_RIGHT")
+            _G.GameTooltip:AddLine(selfButton.currencyName or "Currency")
+            _G.GameTooltip:AddLine(string.format("Amount: %s", formatCompactCount(selfButton.quantity or 0)), 1, 1, 1)
+            _G.GameTooltip:AddLine("Right-click to remove", 0.6, 0.6, 0.6)
+            _G.GameTooltip:Show()
+        end)
+
+        button:SetScript("OnLeave", function()
+            if _G.GameTooltip then
+                _G.GameTooltip:Hide()
+            end
+        end)
+
+        button:Hide()
+        frame.currencyBadgeButtons[index] = button
+        return button
+    end
+
+    local function acquireCurrencyPickerRow(index)
+        local row = frame.currencyPicker.rows[index]
+        if row then
+            return row
+        end
+
+        row = CreateFrame("Button", nil, frame.currencyPicker.content, "BackdropTemplate")
+        row:SetBackdrop(Theme.insetBackdrop)
+        row:SetBackdropColor(unpack(Theme.palette.insetBg))
+        row:SetBackdropBorderColor(unpack(Theme.palette.insetBorder))
+        row:SetHeight(frame.currencyPicker.rowHeight)
+        row:RegisterForClicks("LeftButtonUp")
+
+        if index == 1 then
+            row:SetPoint("TOPLEFT", frame.currencyPicker.content, "TOPLEFT", 0, 0)
+            row:SetPoint("TOPRIGHT", frame.currencyPicker.content, "TOPRIGHT", 0, 0)
+        else
+            row:SetPoint("TOPLEFT", frame.currencyPicker.rows[index - 1], "BOTTOMLEFT", 0, -frame.currencyPicker.rowSpacing)
+            row:SetPoint("TOPRIGHT", frame.currencyPicker.rows[index - 1], "BOTTOMRIGHT", 0, -frame.currencyPicker.rowSpacing)
+        end
+
+        row.icon = row:CreateTexture(nil, "ARTWORK")
+        row.icon:SetSize(16, 16)
+        row.icon:SetPoint("LEFT", row, "LEFT", 6, 0)
+
+        row.nameText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        row.nameText:SetPoint("LEFT", row.icon, "RIGHT", 6, 0)
+        row.nameText:SetJustifyH("LEFT")
+        row.nameText:SetWordWrap(false)
+
+        row.countText = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        row.countText:SetPoint("RIGHT", row, "RIGHT", -8, 0)
+        row.countText:SetJustifyH("RIGHT")
+
+        row.nameText:ClearAllPoints()
+        row.nameText:SetPoint("LEFT", row.icon, "RIGHT", 6, 0)
+        row.nameText:SetPoint("RIGHT", row.countText, "LEFT", -8, 0)
+
+        row.statusText = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        row.statusText:SetPoint("RIGHT", row, "RIGHT", -8, 0)
+        row.statusText:SetText("Added")
+        row.statusText:Hide()
+
+        row:SetScript("OnClick", function(selfRow)
+            if not selfRow.entry or selfRow.entry.isDisabled then
+                return
+            end
+
+            if callbacks.onCurrencyAdd and callbacks.onCurrencyAdd(selfRow.entry.currencyID) then
+                frame.currencyPicker.suppressSearchEvents = true
+                frame.currencyPicker.searchBox:SetText("")
+                frame.currencyPicker.suppressSearchEvents = false
+                frame:SetCurrencyPickerVisible(false)
+            end
+        end)
+
+        row:SetScript("OnEnter", function(selfRow)
+            local entry = selfRow.entry
+            if not entry or not _G.GameTooltip then
+                return
+            end
+
+            _G.GameTooltip:SetOwner(selfRow, "ANCHOR_RIGHT")
+            _G.GameTooltip:AddLine(entry.name or "Currency")
+            _G.GameTooltip:AddLine(string.format("Amount: %s", formatCompactCount(entry.quantity or 0)), 1, 1, 1)
+            _G.GameTooltip:Show()
+        end)
+
+        row:SetScript("OnLeave", function()
+            if _G.GameTooltip then
+                _G.GameTooltip:Hide()
+            end
+        end)
+
+        frame.currencyPicker.rows[index] = row
+        return row
+    end
+
     frame.searchLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     frame.searchLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -44)
     frame.searchLabel:SetText("Search")
@@ -172,6 +413,27 @@ function MainFrame.Create(callbacks)
         if callbacks.onSearchChanged then
             callbacks.onSearchChanged(trimText(selfEditBox:GetText()))
         end
+    end)
+
+    frame.currencyAddButton:SetScript("OnClick", function()
+        frame:SetCurrencyPickerVisible(not frame.currencyPicker:IsShown())
+    end)
+
+    frame.currencyPicker.closeButton:SetScript("OnClick", function()
+        frame:SetCurrencyPickerVisible(false)
+    end)
+
+    frame.currencyPicker.searchBox:SetScript("OnEscapePressed", function(selfEditBox)
+        selfEditBox:ClearFocus()
+        frame:SetCurrencyPickerVisible(false)
+    end)
+
+    frame.currencyPicker.searchBox:SetScript("OnTextChanged", function(selfEditBox)
+        if frame.currencyPicker.suppressSearchEvents then
+            return
+        end
+
+        frame:RefreshCurrencyPicker(trimText(selfEditBox:GetText()))
     end)
 
     frame.mainTabBar = Tabs.Create(frame, Constants.MAIN_TABS, {
@@ -239,6 +501,156 @@ function MainFrame.Create(callbacks)
             self.moneyValue:SetText(_G.GetCoinTextureString(copper))
         else
             self.moneyValue:SetText(formatFallbackCoins(copper))
+        end
+    end
+
+    function frame:SetTrackedCurrencies(entries)
+        self.trackedCurrencyEntries = entries or {}
+
+        local rightAnchor
+        local shown = 0
+        local maxTracked = 8
+
+        for _, entry in ipairs(self.trackedCurrencyEntries) do
+            if shown >= maxTracked then
+                break
+            end
+
+            shown = shown + 1
+            local button = acquireCurrencyBadgeButton(shown)
+            local quantity = tonumber(entry.quantity) or 0
+            if quantity < 0 then
+                quantity = 0
+            end
+
+            button.currencyID = entry.currencyID
+            button.currencyName = entry.name or string.format("Currency %s", tostring(entry.currencyID or "?"))
+            button.quantity = math.floor(quantity)
+            button.icon:SetTexture(entry.iconFileID or 134400)
+            button.countText:SetText(formatCompactCount(button.quantity))
+
+            local width = math.floor((button.countText:GetStringWidth() or 0) + 24)
+            if width < 28 then
+                width = 28
+            elseif width > 56 then
+                width = 56
+            end
+
+            button:SetWidth(width)
+            button:ClearAllPoints()
+            if rightAnchor then
+                button:SetPoint("RIGHT", rightAnchor, "LEFT", -4, 0)
+            else
+                button:SetPoint("RIGHT", self.currencyStrip, "RIGHT", 0, 0)
+            end
+
+            rightAnchor = button
+            button:Show()
+        end
+
+        for index = shown + 1, #self.currencyBadgeButtons do
+            self.currencyBadgeButtons[index]:Hide()
+        end
+    end
+
+    function frame:RefreshCurrencyPicker(searchText)
+        if not self.currencyPicker then
+            return
+        end
+
+        local picker = self.currencyPicker
+        syncCurrencyPickerContentWidth()
+        local query = searchText
+        if query == nil then
+            query = picker.searchBox:GetText() or ""
+        end
+        query = trimText(query)
+        self.currencyPickerSearchText = query
+
+        if (picker.searchBox:GetText() or "") ~= query then
+            picker.suppressSearchEvents = true
+            picker.searchBox:SetText(query)
+            picker.suppressSearchEvents = false
+        end
+
+        local entries = {}
+        if callbacks.getCurrencyPickerOptions then
+            entries = callbacks.getCurrencyPickerOptions(query) or {}
+        end
+        picker.entries = entries
+
+        local shown = 0
+        for _, entry in ipairs(entries) do
+            shown = shown + 1
+            local row = acquireCurrencyPickerRow(shown)
+            row.entry = entry
+            row.icon:SetTexture(entry.iconFileID or 134400)
+            row.nameText:SetText(entry.name or string.format("Currency %s", tostring(entry.currencyID or "?")))
+            row.countText:SetText(formatCompactCount(entry.quantity or 0))
+
+            if entry.isSelected then
+                row.nameText:SetTextColor(unpack(Theme.palette.textMuted))
+                row.countText:SetText("")
+                row.statusText:SetText("Added")
+                row.statusText:Show()
+                row:SetEnabled(false)
+                row:SetBackdropColor(unpack(Theme.palette.tabBgDisabled))
+                row:SetBackdropBorderColor(unpack(Theme.palette.tabBorder))
+            elseif entry.isDisabled then
+                row.nameText:SetTextColor(unpack(Theme.palette.textMuted))
+                row.countText:SetText("")
+                row.statusText:SetText("Max 8")
+                row.statusText:Show()
+                row:SetEnabled(false)
+                row:SetBackdropColor(unpack(Theme.palette.tabBgDisabled))
+                row:SetBackdropBorderColor(unpack(Theme.palette.tabBorder))
+            else
+                row.nameText:SetTextColor(unpack(Theme.palette.textNormal))
+                row.countText:SetTextColor(unpack(Theme.palette.textMuted))
+                row.statusText:Hide()
+                row:SetEnabled(true)
+                row:SetBackdropColor(unpack(Theme.palette.insetBg))
+                row:SetBackdropBorderColor(unpack(Theme.palette.insetBorder))
+            end
+
+            row:Show()
+        end
+
+        for index = shown + 1, #picker.rows do
+            picker.rows[index]:Hide()
+        end
+
+        picker.emptyText:SetShown(shown == 0)
+
+        local rowExtent = picker.rowHeight + picker.rowSpacing
+        local contentHeight = shown > 0 and ((shown * rowExtent) - picker.rowSpacing) or 1
+        picker.content:SetHeight(contentHeight)
+        syncCurrencyPickerContentWidth()
+    end
+
+    function frame:SetCurrencyPickerVisible(isVisible)
+        if not self.currencyPicker then
+            return
+        end
+
+        if isVisible then
+            self.currencyPicker:Show()
+            self.currencyPicker:SetFrameLevel(self:GetFrameLevel() + 40)
+            self.currencyPicker:Raise()
+            syncCurrencyPickerContentWidth()
+
+            if callbacks.onCurrencyPickerOpened then
+                callbacks.onCurrencyPickerOpened()
+            end
+
+            self.currencyPicker.suppressSearchEvents = true
+            self.currencyPicker.searchBox:SetText("")
+            self.currencyPicker.suppressSearchEvents = false
+            self:RefreshCurrencyPicker("")
+            self.currencyPicker.searchBox:SetFocus()
+        else
+            self.currencyPicker:Hide()
+            self.currencyPicker.searchBox:ClearFocus()
         end
     end
 
@@ -316,7 +728,9 @@ function MainFrame.Create(callbacks)
         self:SetPoint(point[1], UIParent, point[3], point[4], point[5])
     end
 
+    frame.currencyPickerSearchText = ""
     frame:SetMoney(0)
+    frame:SetTrackedCurrencies({})
 
     return frame
 end

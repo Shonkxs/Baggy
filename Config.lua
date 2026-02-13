@@ -16,6 +16,7 @@ ns.Config.defaults = {
         activeTab = Constants.TAB_IDS.CONSUMABLES,
         activeArmorSubTab = Constants.ARMOR_SUBTAB_IDS.ALL,
         activeMode = Constants.MODES.INVENTORY,
+        trackedCurrencyIDs = {},
     },
 }
 
@@ -64,4 +65,20 @@ function ns.Config.CopySize(size)
         width = width,
         height = height,
     }
+end
+
+function ns.Config.CopyNumberList(list)
+    local result = {}
+    if type(list) ~= "table" then
+        return result
+    end
+
+    for _, value in ipairs(list) do
+        local numeric = tonumber(value)
+        if numeric then
+            result[#result + 1] = math.floor(numeric)
+        end
+    end
+
+    return result
 end

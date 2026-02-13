@@ -34,6 +34,7 @@ Modern category-based bag replacement for World of Warcraft Retail.
 - UI labels are intentionally English and work across all game locales
 - Header shows current character gold (gold/silver/copper)
 - Crafting reagent quality badges are shown on item icons (when available via API)
+- Tracked currency badges can be added via a `+` picker in the header
 
 ## Commands
 
@@ -63,6 +64,15 @@ Modern category-based bag replacement for World of Warcraft Retail.
 
 - Gold uses the character money API (`GetMoney()`), not warband/account aggregated totals.
 - The header display is formatted as gold/silver/copper with WoW coin icons.
+
+## Tracked Currencies
+
+- Click the header `+` button to open a currency picker with search.
+- Click a currency row to add it as a header badge.
+- Badges display currency icon + owned amount.
+- Right-click a badge to remove it.
+- Up to 8 currencies can be tracked at once.
+- Currency data is sourced from `C_CurrencyInfo`.
 
 ## Crafting Quality Badges
 

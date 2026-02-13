@@ -13,6 +13,7 @@ Data\ContainerIndex.lua
 Data\Overrides.lua
 Data\Categorizer.lua
 Data\Scanner.lua
+Data\Currencies.lua
 UI\Theme.lua
 UI\ItemButton.lua
 UI\ItemGrid.lua
