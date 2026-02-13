@@ -41,6 +41,55 @@ local function applyBackdrop(frame, backdrop, bgColor, borderColor)
     frame:SetBackdropBorderColor(unpack(borderColor))
 end
 
+local function hideTextureRegion(region)
+    if not region or region:GetObjectType() ~= "Texture" then
+        return
+    end
+
+    region:SetAlpha(0)
+    region:Hide()
+end
+
+local function isInputBoxTemplateTexture(texturePath)
+    if type(texturePath) ~= "string" then
+        return false
+    end
+
+    local normalized = string.lower(texturePath)
+    return string.find(normalized, "common%-input%-border", 1, false) ~= nil
+        or string.find(normalized, "ui%-inputbox", 1, false) ~= nil
+        or string.find(normalized, "ui%-editbox", 1, false) ~= nil
+end
+
+local function hideInputBoxTemplateBorder(editBox)
+    if type(editBox) ~= "table" then
+        return
+    end
+
+    local namedRegions = {
+        editBox.Left,
+        editBox.Middle,
+        editBox.Right,
+        editBox.LeftDisabled,
+        editBox.MiddleDisabled,
+        editBox.RightDisabled,
+    }
+
+    for _, region in ipairs(namedRegions) do
+        hideTextureRegion(region)
+    end
+
+    local regions = { editBox:GetRegions() }
+    for _, region in ipairs(regions) do
+        if region and region:GetObjectType() == "Texture" then
+            local texture = region:GetTexture()
+            if isInputBoxTemplateTexture(texture) then
+                hideTextureRegion(region)
+            end
+        end
+    end
+end
+
 function Theme.ApplyPanel(frame)
     applyBackdrop(frame, Theme.panelBackdrop, Theme.palette.panelBg, Theme.palette.panelBorder)
 end
@@ -81,6 +130,10 @@ function Theme.StyleUtilityButton(button, isEnabled)
 end
 
 function Theme.StyleSearchBox(editBox)
+    hideInputBoxTemplateBorder(editBox)
     applyBackdrop(editBox, Theme.insetBackdrop, { 0.04, 0.05, 0.07, 0.95 }, Theme.palette.tabBorder)
     editBox:SetTextColor(unpack(Theme.palette.textNormal))
+    if editBox.SetTextInsets then
+        editBox:SetTextInsets(8, 8, 0, 0)
+    end
 end
