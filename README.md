@@ -32,6 +32,7 @@ Modern category-based bag replacement for World of Warcraft Retail.
 - Inventory mode and bank mode (bank + inventory while bank is open)
 - Persistent frame position, size, scale, active tab/subtab, and lock state
 - UI labels are intentionally English and work across all game locales
+- Header shows current character gold (gold/silver/copper)
 
 ## Commands
 
@@ -56,6 +57,11 @@ Modern category-based bag replacement for World of Warcraft Retail.
 - `Enum.ItemClass.ItemEnhancement` items are routed to `Enchantments`.
 - This is a strict split: Gems/ItemEnhancement are not duplicated into `Materials`.
 - Enchanting reagents (for example dust/shards/essences) usually remain in `Materials` because they are typically `Tradegoods`/`Reagent`.
+
+## Gold Display
+
+- Gold uses the character money API (`GetMoney()`), not warband/account aggregated totals.
+- The header display is formatted as gold/silver/copper with WoW coin icons.
 
 ## Scope
 

@@ -50,7 +50,7 @@ end
 local function createDragHandle(frame, callbacks)
     local dragHandle = CreateFrame("Frame", nil, frame)
     dragHandle:SetPoint("TOPLEFT", frame, "TOPLEFT", 8, -8)
-    dragHandle:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -180, -8)
+    dragHandle:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -320, -8)
     dragHandle:SetHeight(26)
     dragHandle:EnableMouse(true)
     dragHandle:RegisterForDrag("LeftButton")
@@ -85,6 +85,20 @@ local function trimText(text)
         return ""
     end
     return (text:gsub("^%s+", ""):gsub("%s+$", ""))
+end
+
+local function formatFallbackCoins(copperAmount)
+    local copper = tonumber(copperAmount) or 0
+    if copper < 0 then
+        copper = 0
+    end
+
+    copper = math.floor(copper)
+    local gold = math.floor(copper / 10000)
+    local silver = math.floor((copper % 10000) / 100)
+    local copperRemainder = copper % 100
+
+    return string.format("%dg %ds %dc", gold, silver, copperRemainder)
 end
 
 function MainFrame.Create(callbacks)
@@ -127,6 +141,17 @@ function MainFrame.Create(callbacks)
         end
     end)
     frame.bankToggle:SetPoint("TOPRIGHT", frame.closeButton, "TOPLEFT", -6, -2)
+
+    frame.moneyValue = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    frame.moneyValue:SetPoint("RIGHT", frame.bankToggle, "LEFT", -10, 0)
+    frame.moneyValue:SetJustifyH("RIGHT")
+
+    frame.moneyLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    frame.moneyLabel:SetPoint("RIGHT", frame.moneyValue, "LEFT", -6, 0)
+    frame.moneyLabel:SetText("Gold")
+    if Theme.palette and Theme.palette.textMuted then
+        frame.moneyLabel:SetTextColor(unpack(Theme.palette.textMuted))
+    end
 
     frame.searchLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     frame.searchLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -44)
@@ -202,6 +227,21 @@ function MainFrame.Create(callbacks)
         self.suppressSearchEvents = false
     end
 
+    function frame:SetMoney(copperAmount)
+        local copper = tonumber(copperAmount) or 0
+        if copper < 0 then
+            copper = 0
+        end
+
+        copper = math.floor(copper)
+
+        if _G.GetCoinTextureString then
+            self.moneyValue:SetText(_G.GetCoinTextureString(copper))
+        else
+            self.moneyValue:SetText(formatFallbackCoins(copper))
+        end
+    end
+
     function frame:SetArmorSubTabsVisible(isVisible)
         if isVisible then
             self.armorTabBar:Show()
@@ -275,6 +315,8 @@ function MainFrame.Create(callbacks)
         self:ClearAllPoints()
         self:SetPoint(point[1], UIParent, point[3], point[4], point[5])
     end
+
+    frame:SetMoney(0)
 
     return frame
 end

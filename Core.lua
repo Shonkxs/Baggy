@@ -91,6 +91,7 @@ function Baggy:OnInitialize()
     self.mainCounts = Constants.NewMainCountMap()
     self.armorCounts = Constants.NewArmorCountMap()
     self.debugClassificationEnabled = false
+    self.playerMoney = 0
 
     self:RegisterChatCommand("baggy", "HandleSlashCommand")
 end
@@ -129,6 +130,7 @@ function Baggy:PLAYER_LOGIN()
     self:RegisterEvent("PLAYER_INTERACTION_MANAGER_FRAME_SHOW")
     self:RegisterEvent("PLAYER_INTERACTION_MANAGER_FRAME_HIDE")
     self:RegisterEvent("ITEM_DATA_LOAD_RESULT")
+    self:RegisterEvent("PLAYER_MONEY")
 
     if _G.C_EventUtils and _G.C_EventUtils.IsEventValid and _G.C_EventUtils.IsEventValid("PLAYERREAGENTBANKSLOTS_CHANGED") then
         self:RegisterEvent("PLAYERREAGENTBANKSLOTS_CHANGED", "RequestRescan")
@@ -137,6 +139,7 @@ function Baggy:PLAYER_LOGIN()
     self:InstallBagHooks()
     self:InstallContainerFrameVisibilityHooks()
     self:AddToSpecialFrames()
+    self:RefreshMoney()
     Categorizer.RebuildTradeSubclassSets()
     self:RebuildData()
     self:ApplyView()
@@ -277,6 +280,23 @@ function Baggy:IsBagCloseSuppressed()
     return (self.suppressBagCloseUntil or 0) > now
 end
 
+function Baggy:RefreshMoney()
+    local money = 0
+    if _G.GetMoney then
+        money = tonumber(_G.GetMoney()) or 0
+    end
+
+    if money < 0 then
+        money = 0
+    end
+
+    self.playerMoney = math.floor(money)
+
+    if self.mainFrame and self.mainFrame.SetMoney then
+        self.mainFrame:SetMoney(self.playerMoney)
+    end
+end
+
 function Baggy:HandleBagOpenRequest()
     if not self.mainFrame then
         return
@@ -284,6 +304,7 @@ function Baggy:HandleBagOpenRequest()
 
     self:MarkBagAction()
     self:SuppressBagCloseFor(0.40)
+    self:RefreshMoney()
 
     self.mainFrame:Show()
     self:RequestRescan()
@@ -736,4 +757,8 @@ function Baggy:ITEM_DATA_LOAD_RESULT(_, itemID)
     if Scanner.HandleItemDataLoadResult(itemID) then
         self:RequestRescan()
     end
+end
+
+function Baggy:PLAYER_MONEY()
+    self:RefreshMoney()
 end
