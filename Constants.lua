@@ -11,10 +11,7 @@ Constants.MODES = {
 Constants.TAB_IDS = {
     CONSUMABLES = "CONSUMABLES",
     ARMOR = "ARMOR",
-    CLOTH = "CLOTH",
-    LEATHER = "LEATHER",
-    HERBS = "HERBS",
-    ORES = "ORES",
+    MATERIALS = "MATERIALS",
     MOUNTS = "MOUNTS",
     MISC = "MISC",
 }
@@ -22,10 +19,7 @@ Constants.TAB_IDS = {
 Constants.MAIN_TABS = {
     { id = Constants.TAB_IDS.CONSUMABLES, label = "Consumables" },
     { id = Constants.TAB_IDS.ARMOR, label = "Armor" },
-    { id = Constants.TAB_IDS.CLOTH, label = "Cloth" },
-    { id = Constants.TAB_IDS.LEATHER, label = "Leather" },
-    { id = Constants.TAB_IDS.HERBS, label = "Herbs" },
-    { id = Constants.TAB_IDS.ORES, label = "Ores" },
+    { id = Constants.TAB_IDS.MATERIALS, label = "Materials" },
     { id = Constants.TAB_IDS.MOUNTS, label = "Mounts" },
     { id = Constants.TAB_IDS.MISC, label = "Misc" },
 }

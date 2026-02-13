@@ -13,6 +13,10 @@ local Categorizer = ns.Categorizer
 local Scanner = ns.Scanner
 local MainFrame = ns.MainFrame
 
+local function normalizeMainTab(tabID)
+    return Categorizer.NormalizeMainTab(tabID)
+end
+
 local function lowerOrEmpty(value)
     if type(value) ~= "string" then
         return ""
@@ -63,6 +67,7 @@ function Baggy:OnInitialize()
     self.db = AceDB:New("BaggyDB", Config.defaults, true)
     self.profile = self.db.profile
 
+    self.profile.activeTab = normalizeMainTab(self.profile.activeTab)
     if not Constants.MAIN_TAB_LOOKUP[self.profile.activeTab] then
         self.profile.activeTab = Constants.TAB_IDS.CONSUMABLES
     end
@@ -85,6 +90,7 @@ function Baggy:OnInitialize()
     self.armorBuckets = nil
     self.mainCounts = Constants.NewMainCountMap()
     self.armorCounts = Constants.NewArmorCountMap()
+    self.debugClassificationEnabled = false
 
     self:RegisterChatCommand("baggy", "HandleSlashCommand")
 end
@@ -381,6 +387,8 @@ function Baggy:RebuildData()
     local mode = self:GetEffectiveMode()
     local containerIDs = ContainerIndex.GetContainers(mode, self.bankOpen)
     local records = Scanner.ScanContainers(containerIDs)
+    local debugLines = {}
+    local debugLineLimit = 25
 
     local mainBuckets = {}
     local armorBuckets = {}
@@ -399,6 +407,19 @@ function Baggy:RebuildData()
         local mainTab, armorSubTab = Categorizer.Categorize(itemRecord)
         if not mainBuckets[mainTab] then
             mainTab = Constants.TAB_IDS.MISC
+        end
+
+        if self.debugClassificationEnabled and #debugLines < debugLineLimit then
+            local debugName = tostring(itemRecord.name or "?")
+            debugLines[#debugLines + 1] = string.format(
+                "#%d id=%s name=%s class=%s sub=%s -> %s",
+                #debugLines + 1,
+                tostring(itemRecord.itemID),
+                debugName,
+                tostring(itemRecord.classID),
+                tostring(itemRecord.subClassID),
+                tostring(mainTab)
+            )
         end
 
         mainBuckets[mainTab][#mainBuckets[mainTab] + 1] = itemRecord
@@ -427,6 +448,17 @@ function Baggy:RebuildData()
     self.armorBuckets = armorBuckets
     self.mainCounts = mainCounts
     self.armorCounts = armorCounts
+
+    if self.debugClassificationEnabled then
+        self:Print(string.format(
+            "Debug classify: showing %d of %d scanned item(s).",
+            #debugLines,
+            #records
+        ))
+        for _, line in ipairs(debugLines) do
+            self:Print(line)
+        end
+    end
 end
 
 function Baggy:GetVisibleItems()
@@ -595,6 +627,27 @@ function Baggy:HandleSlashCommand(input)
         self:Print("/baggy reset - Reset layout and settings")
         self:Print("/baggy lock - Toggle frame lock")
         self:Print("/baggy scale <0.75-1.50> - Set frame scale")
+        self:Print("/baggy debug classify - Toggle classification debug output")
+        return
+    end
+
+    if command == "debug" then
+        local debugAction = string.match(args or "", "^(%S+)") or ""
+        debugAction = string.lower(debugAction)
+
+        if debugAction == "classify" then
+            self.debugClassificationEnabled = not self.debugClassificationEnabled
+            self:Print(self.debugClassificationEnabled and
+                "Classification debug enabled (max 25 lines per rescan)." or
+                "Classification debug disabled.")
+
+            if self.debugClassificationEnabled then
+                self:RequestRescan()
+            end
+            return
+        end
+
+        self:Print("Usage: /baggy debug classify")
         return
     end
 

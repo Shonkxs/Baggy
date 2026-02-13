@@ -4,7 +4,11 @@ local Overrides = {}
 ns.Overrides = Overrides
 
 local overrideByItemID = {
-    -- [itemID] = { mainTab = "MISC", armorSubTab = "ALL" },
+    -- Use this table for API outliers that should always map to a fixed Baggy category.
+    -- Example:
+    -- [12345] = { mainTab = "MATERIALS" },
+    -- [67890] = { mainTab = "MATERIALS" },
+    -- [11111] = { mainTab = "ARMOR", armorSubTab = "WEAPONS" },
 }
 
 function Overrides.Get(itemID)
@@ -29,4 +33,14 @@ function Overrides.Clear(itemID)
     end
 
     overrideByItemID[itemID] = nil
+end
+
+function Overrides.SetMany(entries)
+    if type(entries) ~= "table" then
+        return
+    end
+
+    for itemID, categoryResult in pairs(entries) do
+        Overrides.Set(itemID, categoryResult)
+    end
 end

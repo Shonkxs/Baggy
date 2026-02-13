@@ -6,6 +6,37 @@ ns.Scanner = Scanner
 local pendingItemData = {}
 local pendingCount = 0
 
+local function toNumberOrNil(value)
+    if type(value) == "number" then
+        return value
+    end
+
+    local numeric = tonumber(value)
+    if type(numeric) == "number" then
+        return numeric
+    end
+
+    return nil
+end
+
+local function getInstantItemFields(itemRef)
+    local itemID, itemEquipLoc, icon, classID, subClassID
+
+    if _G.C_Item and _G.C_Item.GetItemInfoInstant then
+        itemID, _, _, itemEquipLoc, icon, classID, subClassID = _G.C_Item.GetItemInfoInstant(itemRef)
+    elseif _G.GetItemInfoInstant then
+        itemID, _, _, itemEquipLoc, icon, classID, subClassID = _G.GetItemInfoInstant(itemRef)
+    end
+
+    return {
+        itemID = toNumberOrNil(itemID),
+        equipLoc = itemEquipLoc or "",
+        icon = icon,
+        classID = toNumberOrNil(classID),
+        subClassID = toNumberOrNil(subClassID),
+    }
+end
+
 local function markItemPending(itemID)
     if type(itemID) ~= "number" then
         return
@@ -61,21 +92,24 @@ end
 
 local function resolveItemInfo(itemID, itemLink, slotInfo)
     local name, linkFromInfo, quality, _, _, _, _, _, equipLoc, icon, _, classID, subClassID = _G.GetItemInfo(itemID)
-    local _, instantClassID, instantSubClassID, instantEquipLoc, instantIcon = _G.GetItemInfoInstant(itemID)
+    local instantInfo = getInstantItemFields(itemLink or itemID)
 
     if not name then
         markItemPending(itemID)
     end
+
+    local resolvedClassID = toNumberOrNil(classID) or instantInfo.classID
+    local resolvedSubClassID = toNumberOrNil(subClassID) or instantInfo.subClassID
 
     return {
         name = name or ("Item " .. tostring(itemID)),
         link = itemLink or linkFromInfo,
         quality = quality or slotInfo.quality or 0,
         itemLevel = resolveItemLevel(itemLink or linkFromInfo),
-        classID = classID or instantClassID,
-        subClassID = subClassID or instantSubClassID,
-        equipLoc = equipLoc or instantEquipLoc or "",
-        icon = icon or slotInfo.iconFileID or instantIcon,
+        classID = resolvedClassID,
+        subClassID = resolvedSubClassID,
+        equipLoc = equipLoc or instantInfo.equipLoc or "",
+        icon = icon or slotInfo.iconFileID or instantInfo.icon,
     }
 end
 

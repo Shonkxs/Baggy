@@ -8,10 +8,7 @@ Modern category-based bag replacement for World of Warcraft Retail.
 - Main tabs:
   - Consumables
   - Armor
-  - Cloth
-  - Leather
-  - Herbs
-  - Ores
+  - Materials
   - Mounts
   - Misc
 - Armor subtabs:
@@ -41,6 +38,15 @@ Modern category-based bag replacement for World of Warcraft Retail.
 - `/baggy reset` - Reset layout and settings
 - `/baggy lock` - Toggle frame lock
 - `/baggy scale <0.75-1.50>` - Set frame scale
+- `/baggy debug classify` - Toggle temporary item classification debug output (max 25 lines per rescan)
+
+## Material Classification
+
+- Crafting materials are classified by API-driven item class IDs.
+- `Enum.ItemClass.Tradegoods` and `Enum.ItemClass.Reagent` are both routed to `Materials`.
+- Classification logic is locale-independent and does not use tooltip/name text parsing.
+- `Data/Overrides.lua` can pin specific itemIDs to explicit tabs for API edge cases.
+- Legacy saved tabs (`CLOTH/LEATHER/HERBS/ORES`) are auto-migrated to `MATERIALS`.
 
 ## Scope
 
