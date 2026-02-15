@@ -20,4 +20,4 @@ UI\ItemGrid.lua
 UI\Tabs.lua
 UI\BankToggle.lua
 UI\MainFrame.lua
-Core.lua
+Baggy.lua
