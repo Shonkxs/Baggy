@@ -1,7 +1,6 @@
 local ADDON_NAME, ns = ...
 
 local Constants = ns.Constants
-local Theme = ns.Theme
 
 local ItemButton = {}
 ns.ItemButton = ItemButton
@@ -53,16 +52,11 @@ local function hideUnsupportedOverlays(button)
             region:Hide()
         end
     end
-
-    if button.IconBorder and button.IconBorder.Hide then
-        button.IconBorder:Hide()
-    end
 end
 
 function ItemButton.Create(parent)
-    local button = CreateFrame("ItemButton", nil, parent, "ContainerFrameItemButtonTemplate,BackdropTemplate")
+    local button = CreateFrame("ItemButton", nil, parent, "ContainerFrameItemButtonTemplate")
     button:SetSize(Constants.ITEM_BUTTON_SIZE, Constants.ITEM_BUTTON_SIZE)
-    button:SetBackdrop(Theme.insetBackdrop)
 
     button.icon = button.icon or button.IconTexture or button.Icon
     if button.icon then
@@ -70,12 +64,6 @@ function ItemButton.Create(parent)
         button.icon:SetPoint("TOPLEFT", button, "TOPLEFT", 2, -2)
         button.icon:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -2, 2)
         button.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-    end
-
-    button.countText = button.Count
-    if not button.countText then
-        button.countText = button:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
-        button.countText:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -2, 2)
     end
 
     button.lockOverlay = button:CreateTexture(nil, "OVERLAY")
@@ -92,35 +80,25 @@ function ItemButton.Create(parent)
     function button:SetItem(record)
         self.record = record
         if not record then
-            if self.SetBagID then
-                self:SetBagID(nil)
-            end
+            if self.SetBagID then self:SetBagID(nil) end
             self:SetID(0)
-
-            if self.icon then
-                self.icon:SetTexture(nil)
-            end
-            self.countText:SetText("")
+            if self.icon then self.icon:SetTexture(nil) end
+            SetItemButtonCount(self, 0)
             self.lockOverlay:Hide()
             self.reagentQualityBadge:Hide()
+            if self.IconBorder then self.IconBorder:Hide() end
             self:Hide()
             return
         end
 
-        if self.SetBagID then
-            self:SetBagID(record.bagID)
-        end
+        if self.SetBagID then self:SetBagID(record.bagID) end
         self:SetID(record.slotID or 0)
 
         if self.icon then
             self.icon:SetTexture(record.icon or 134400)
         end
 
-        if (record.stackCount or 1) > 1 then
-            self.countText:SetText(record.stackCount)
-        else
-            self.countText:SetText("")
-        end
+        SetItemButtonCount(self, record.stackCount or 0)
 
         if record.isLocked then
             self.lockOverlay:Show()
@@ -136,10 +114,11 @@ function ItemButton.Create(parent)
 
         local quality = record.quality or 0
         local qualityColor = _G.ITEM_QUALITY_COLORS and _G.ITEM_QUALITY_COLORS[quality]
-        if qualityColor then
-            self:SetBackdropBorderColor(qualityColor.r, qualityColor.g, qualityColor.b, 0.95)
-        else
-            self:SetBackdropBorderColor(unpack(Theme.palette.insetBorder))
+        if qualityColor and self.IconBorder then
+            self.IconBorder:SetVertexColor(qualityColor.r, qualityColor.g, qualityColor.b)
+            self.IconBorder:Show()
+        elseif self.IconBorder then
+            self.IconBorder:Hide()
         end
 
         hideUnsupportedOverlays(self)
