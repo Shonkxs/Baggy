@@ -25,6 +25,10 @@ local function lowerOrEmpty(value)
     return string.lower(value)
 end
 
+local function isInCombatLockdown()
+    return _G.InCombatLockdown and _G.InCombatLockdown()
+end
+
 local function itemSort(a, b)
     local aQuality = a.quality or 0
     local bQuality = b.quality or 0
@@ -104,6 +108,10 @@ function Baggy:OnInitialize()
     self.justOpenedByHook = false
     self.justOpenedNonce = 0
     self.internalHideGuard = false
+    self.deferredRescan = false
+    self.deferredApplyView = false
+    self.deferredHideBlizzardBags = false
+    self.deferredToggleIntent = false
     self.trackedCurrencyIDs = Config.CopyNumberList(self.profile.trackedCurrencyIDs)
     self.trackedCurrencies = {}
 
@@ -154,6 +162,7 @@ function Baggy:PLAYER_LOGIN()
     self:RegisterEvent("ITEM_DATA_LOAD_RESULT")
     self:RegisterEvent("PLAYER_MONEY")
     self:RegisterEvent("CURRENCY_DISPLAY_UPDATE")
+    self:RegisterEvent("PLAYER_REGEN_ENABLED")
 
     if _G.C_EventUtils and _G.C_EventUtils.IsEventValid and _G.C_EventUtils.IsEventValid("PLAYERREAGENTBANKSLOTS_CHANGED") then
         self:RegisterEvent("PLAYERREAGENTBANKSLOTS_CHANGED", "RequestRescan")
@@ -206,6 +215,13 @@ function Baggy:ResolveToggleIntent()
         return
     end
 
+    if isInCombatLockdown() then
+        self.deferredToggleIntent = true
+        return
+    end
+
+    self.deferredToggleIntent = false
+
     local effectiveMode = self:GetEffectiveMode()
     if self.mainFrame:IsShown() then
         if effectiveMode == Constants.MODES.INVENTORY then
@@ -236,6 +252,10 @@ function Baggy:QueueToggleIntent()
     self.toggleIntentQueued = true
     _G.C_Timer.After(0, function()
         self.toggleIntentQueued = false
+        if isInCombatLockdown() then
+            self.deferredToggleIntent = true
+            return
+        end
         self:ResolveToggleIntent()
     end)
 end
@@ -507,6 +527,14 @@ function Baggy:HandleBagOpenRequest()
         return
     end
 
+    if isInCombatLockdown() then
+        self.deferredHideBlizzardBags = true
+        if not self.mainFrame:IsShown() then
+            self.deferredToggleIntent = true
+        end
+        return
+    end
+
     if self.mainFrame:IsShown() then
         self:RefreshMoney()
         self:HideBlizzardBagFrames(false)
@@ -523,6 +551,13 @@ end
 
 function Baggy:HandleBagCloseRequest(ignoreInternalGuard)
     if not self.mainFrame then
+        return
+    end
+
+    if isInCombatLockdown() then
+        if self.mainFrame:IsShown() then
+            self.deferredToggleIntent = true
+        end
         return
     end
 
@@ -543,39 +578,75 @@ function Baggy:HideBlizzardBagFrames(applyGuard)
     end
 
     self:InstallContainerFrameVisibilityHooks()
+    local function hideFrameIfShown(frame)
+        if not (frame and frame.IsShown and frame:IsShown()) then
+            return true
+        end
+
+        if isInCombatLockdown() then
+            self.deferredHideBlizzardBags = true
+            return false
+        end
+
+        frame:Hide()
+        return true
+    end
+
+    if isInCombatLockdown() then
+        self.deferredHideBlizzardBags = true
+        return
+    end
+
+    self.deferredHideBlizzardBags = false
+
     if applyGuard then
         self.internalHideGuard = true
     end
 
-    if _G.ContainerFrameCombinedBags and _G.ContainerFrameCombinedBags:IsShown() then
-        _G.ContainerFrameCombinedBags:Hide()
+    if not hideFrameIfShown(_G.ContainerFrameCombinedBags) then
+        if applyGuard then
+            self.internalHideGuard = false
+        end
+        return
     end
 
     if _G.ContainerFrameContainer and _G.ContainerFrameContainer.ContainerFrames then
         for _, containerFrame in ipairs(_G.ContainerFrameContainer.ContainerFrames) do
-            if containerFrame and containerFrame:IsShown() then
-                containerFrame:Hide()
+            if not hideFrameIfShown(containerFrame) then
+                if applyGuard then
+                    self.internalHideGuard = false
+                end
+                return
             end
         end
     end
 
     for index = 1, 13 do
         local frame = _G["ContainerFrame" .. tostring(index)]
-        if frame and frame:IsShown() then
-            frame:Hide()
+        if not hideFrameIfShown(frame) then
+            if applyGuard then
+                self.internalHideGuard = false
+            end
+            return
         end
     end
 
     _G.C_Timer.After(0, function()
         if self.mainFrame and self.mainFrame:IsShown() then
-            if _G.ContainerFrameCombinedBags and _G.ContainerFrameCombinedBags:IsShown() then
-                _G.ContainerFrameCombinedBags:Hide()
+            if not hideFrameIfShown(_G.ContainerFrameCombinedBags) then
+                if applyGuard then
+                    self.internalHideGuard = false
+                end
+                return
             end
 
             if _G.ContainerFrameContainer and _G.ContainerFrameContainer.ContainerFrames then
                 for _, containerFrame in ipairs(_G.ContainerFrameContainer.ContainerFrames) do
-                    if containerFrame and containerFrame:IsShown() then
-                        containerFrame:Hide()
+                    if not hideFrameIfShown(containerFrame) then
+                        if applyGuard then
+                            self.internalHideGuard = false
+                        end
+                        return
                     end
                 end
             end
@@ -720,6 +791,13 @@ function Baggy:ApplyView()
         return
     end
 
+    if isInCombatLockdown() then
+        self.deferredApplyView = true
+        return
+    end
+
+    self.deferredApplyView = false
+
     if not self.mainBuckets then
         self:RebuildData()
     end
@@ -752,6 +830,13 @@ function Baggy:RequestRescan()
         return
     end
 
+    if isInCombatLockdown() then
+        self.deferredRescan = true
+        return
+    end
+
+    self.deferredRescan = false
+
     if self.rescanQueued then
         return
     end
@@ -759,6 +844,10 @@ function Baggy:RequestRescan()
     self.rescanQueued = true
     _G.C_Timer.After(0, function()
         self.rescanQueued = false
+        if isInCombatLockdown() then
+            self.deferredRescan = true
+            return
+        end
         self:RebuildData()
         self:ApplyView()
     end)
@@ -832,6 +921,11 @@ end
 
 function Baggy:ToggleMainFrame()
     if not self.mainFrame then
+        return
+    end
+
+    if isInCombatLockdown() then
+        self.deferredToggleIntent = true
         return
     end
 
@@ -968,6 +1062,27 @@ end
 function Baggy:ITEM_DATA_LOAD_RESULT(_, itemID)
     if Scanner.HandleItemDataLoadResult(itemID) then
         self:RequestRescan()
+    end
+end
+
+function Baggy:PLAYER_REGEN_ENABLED()
+    if self.deferredToggleIntent then
+        self.deferredToggleIntent = false
+        self:ResolveToggleIntent()
+    end
+
+    if self.deferredRescan then
+        self.deferredRescan = false
+        self.deferredApplyView = false
+        self:RequestRescan()
+    elseif self.deferredApplyView then
+        self.deferredApplyView = false
+        self:ApplyView()
+    end
+
+    if self.deferredHideBlizzardBags and self.mainFrame and self.mainFrame:IsShown() then
+        self.deferredHideBlizzardBags = false
+        self:HideBlizzardBagFrames(false)
     end
 end
 

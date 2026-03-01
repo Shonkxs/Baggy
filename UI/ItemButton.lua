@@ -34,128 +34,52 @@ local function setReagentQualityBadge(texture, reagentQuality)
     return true
 end
 
-local function getRecordLink(record)
-    if record.link then
-        return record.link
-    end
+local function hideUnsupportedOverlays(button)
+    local overlayKeys = {
+        "NewItemTexture",
+        "BattlepayItemTexture",
+        "BagIndicator",
+        "JunkIcon",
+        "UpgradeIcon",
+        "QuestBadge",
+        "IconQuestTexture",
+        "ExtendedSlot",
+        "flash",
+    }
 
-    if record.itemID then
-        return "item:" .. tostring(record.itemID)
-    end
-
-    return nil
-end
-
-local function openStackSplit(button)
-    local record = button.record
-    if not record or (record.stackCount or 0) <= 1 then
-        return false
-    end
-
-    if _G.OpenStackSplitFrame then
-        _G.OpenStackSplitFrame(record.stackCount, button, "BOTTOMRIGHT", "TOPRIGHT")
-        return true
-    end
-
-    if _G.StackSplitFrame and _G.StackSplitFrame.OpenStackSplitFrame then
-        _G.StackSplitFrame:OpenStackSplitFrame(record.stackCount, button, "BOTTOMRIGHT", "TOPRIGHT")
-        return true
-    end
-
-    return false
-end
-
-local function onClick(selfButton, mouseButton)
-    local record = selfButton.record
-    if not record then
-        return
-    end
-
-    if mouseButton == "LeftButton" and _G.IsModifiedClick and _G.IsModifiedClick("SPLITSTACK") then
-        if openStackSplit(selfButton) then
-            return
+    for _, key in ipairs(overlayKeys) do
+        local region = button[key]
+        if region and region.Hide then
+            region:Hide()
         end
     end
 
-    local link = getRecordLink(record)
-    if link and _G.HandleModifiedItemClick and _G.HandleModifiedItemClick(link) then
-        return
-    end
-
-    if not (_G.C_Container and _G.C_Container.PickupContainerItem and _G.C_Container.UseContainerItem) then
-        return
-    end
-
-    if mouseButton == "RightButton" then
-        _G.C_Container.UseContainerItem(record.bagID, record.slotID)
-    else
-        _G.C_Container.PickupContainerItem(record.bagID, record.slotID)
-    end
-end
-
-local function onDragStart(selfButton)
-    local record = selfButton.record
-    if not record then
-        return
-    end
-
-    if _G.C_Container and _G.C_Container.PickupContainerItem then
-        _G.C_Container.PickupContainerItem(record.bagID, record.slotID)
-    end
-end
-
-local function onReceiveDrag(selfButton)
-    local record = selfButton.record
-    if not record then
-        return
-    end
-
-    if _G.C_Container and _G.C_Container.PickupContainerItem then
-        _G.C_Container.PickupContainerItem(record.bagID, record.slotID)
-    end
-end
-
-local function onEnter(selfButton)
-    local record = selfButton.record
-    if not record then
-        return
-    end
-
-    if _G.GameTooltip and _G.GameTooltip.SetBagItem then
-        _G.GameTooltip:SetOwner(selfButton, "ANCHOR_RIGHT")
-        _G.GameTooltip:SetBagItem(record.bagID, record.slotID)
-        _G.GameTooltip:Show()
-    end
-end
-
-local function onLeave(selfButton)
-    if _G.GameTooltip and _G.GameTooltip:GetOwner() == selfButton then
-        _G.GameTooltip:Hide()
+    if button.IconBorder and button.IconBorder.Hide then
+        button.IconBorder:Hide()
     end
 end
 
 function ItemButton.Create(parent)
-    local button = CreateFrame("Button", nil, parent, "BackdropTemplate")
+    local button = CreateFrame("ItemButton", nil, parent, "ContainerFrameItemButtonTemplate,BackdropTemplate")
     button:SetSize(Constants.ITEM_BUTTON_SIZE, Constants.ITEM_BUTTON_SIZE)
     button:SetBackdrop(Theme.insetBackdrop)
-    button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    button:RegisterForDrag("LeftButton")
-    button:SetScript("OnClick", onClick)
-    button:SetScript("OnDragStart", onDragStart)
-    button:SetScript("OnReceiveDrag", onReceiveDrag)
-    button:SetScript("OnEnter", onEnter)
-    button:SetScript("OnLeave", onLeave)
 
-    button.icon = button:CreateTexture(nil, "ARTWORK")
-    button.icon:SetPoint("TOPLEFT", button, "TOPLEFT", 2, -2)
-    button.icon:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -2, 2)
-    button.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    button.icon = button.icon or button.IconTexture or button.Icon
+    if button.icon then
+        button.icon:ClearAllPoints()
+        button.icon:SetPoint("TOPLEFT", button, "TOPLEFT", 2, -2)
+        button.icon:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -2, 2)
+        button.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    end
 
-    button.countText = button:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
-    button.countText:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -2, 2)
+    button.countText = button.Count
+    if not button.countText then
+        button.countText = button:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
+        button.countText:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -2, 2)
+    end
 
     button.lockOverlay = button:CreateTexture(nil, "OVERLAY")
-    button.lockOverlay:SetAllPoints(button.icon)
+    button.lockOverlay:SetAllPoints(button.icon or button)
     button.lockOverlay:SetColorTexture(0.1, 0.1, 0.1, 0.5)
     button.lockOverlay:Hide()
 
@@ -163,35 +87,19 @@ function ItemButton.Create(parent)
     button.reagentQualityBadge:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -1)
     button.reagentQualityBadge:Hide()
 
-    function button:SplitStack(splitAmount)
-        local record = self.record
-        if not record then
-            return
-        end
-
-        if _G.C_Container and _G.C_Container.SplitContainerItem then
-            _G.C_Container.SplitContainerItem(record.bagID, record.slotID, splitAmount)
-        end
-    end
-
-    function button:GetBagID()
-        if self.record then
-            return self.record.bagID
-        end
-        return nil
-    end
-
-    function button:GetID()
-        if self.record then
-            return self.record.slotID
-        end
-        return nil
-    end
+    hideUnsupportedOverlays(button)
 
     function button:SetItem(record)
         self.record = record
         if not record then
-            self.icon:SetTexture(nil)
+            if self.SetBagID then
+                self:SetBagID(nil)
+            end
+            self:SetID(0)
+
+            if self.icon then
+                self.icon:SetTexture(nil)
+            end
             self.countText:SetText("")
             self.lockOverlay:Hide()
             self.reagentQualityBadge:Hide()
@@ -199,7 +107,14 @@ function ItemButton.Create(parent)
             return
         end
 
-        self.icon:SetTexture(record.icon or 134400)
+        if self.SetBagID then
+            self:SetBagID(record.bagID)
+        end
+        self:SetID(record.slotID or 0)
+
+        if self.icon then
+            self.icon:SetTexture(record.icon or 134400)
+        end
 
         if (record.stackCount or 1) > 1 then
             self.countText:SetText(record.stackCount)
@@ -227,6 +142,7 @@ function ItemButton.Create(parent)
             self:SetBackdropBorderColor(unpack(Theme.palette.insetBorder))
         end
 
+        hideUnsupportedOverlays(self)
         self:Show()
     end
 
